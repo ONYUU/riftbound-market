@@ -1,0 +1,46 @@
+{
+  "runType": "manual_price_research_test",
+  "scheduledFor": "2026-05-20T09:00:00+09:00",
+  "message": "Template payload for testing the price upsert pipeline.",
+  "exchangeRateKrwPerUsd": 1350,
+  "observations": [
+    {
+      "itemType": "single_card",
+      "itemSlug": "ogn-066a-298",
+      "sourceSlug": "pricecharting",
+      "listingType": "recent_sold",
+      "condition": "raw",
+      "grade": null,
+      "priceNative": 102.5,
+      "currency": "USD",
+      "priceUsd": 102.5,
+      "priceKrw": 140500,
+      "exchangeRateKrwPerUsd": 1370.73,
+      "shippingKrw": 0,
+      "observedUrl": "https://www.pricecharting.com/search-products?q=Riftbound&type=prices",
+      "observedTitle": "Ahri, Alluring Riftbound",
+      "observedAt": "2026-05-20T09:00:00+09:00",
+      "confidence": "medium",
+      "notes": "Template observation. Replace with real researched source evidence."
+    },
+    {
+      "itemType": "sealed_product",
+      "itemSlug": "origins-booster-display",
+      "sourceSlug": "tcgplayer",
+      "listingType": "lowest_listing",
+      "condition": "sealed",
+      "grade": null,
+      "priceNative": 99.99,
+      "currency": "USD",
+      "priceUsd": 99.99,
+      "priceKrw": 138000,
+      "exchangeRateKrwPerUsd": 1380.14,
+      "shippingKrw": 0,
+      "observedUrl": "https://www.tcgplayer.com/categories/trading-and-collectible-card-games/riftbound-league-of-legends-trading-card-game",
+      "observedTitle": "Origins Booster Display",
+      "observedAt": "2026-05-20T09:00:00+09:00",
+      "confidence": "medium",
+      "notes": "Template observation. Replace with real researched source evidence."
+    }
+  ]
+}
