@@ -9,7 +9,8 @@ This repository is an open-source web MVP for reviewing the product direction an
 - Riftbound card and sealed product catalog UI
 - KRW / USD price display
 - Card, set, champion, market, calculator, collection, community, and guide pages
-- Supabase schema and RLS migrations for catalog, prices, auth profiles, posts, and comments
+- Guest-first browsing with no required signup or OAuth login
+- Supabase schema and RLS migrations for catalog and price data
 - Price research scripts for controlled manual or scheduled updates
 
 ## Tech Stack
@@ -58,6 +59,8 @@ Price data is collected for reference only. Market prices can change quickly and
 ## Supabase
 
 Schema migrations live in `supabase/migrations`.
+
+The current frontend runs in guest mode. Public catalog and price reads can use the Supabase publishable key, while community guest writing stays local unless a moderated backend write path is added later.
 
 Local Supabase CLI state under `supabase/.temp` is ignored and should not be published.
 

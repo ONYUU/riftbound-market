@@ -154,6 +154,12 @@ Server-only write:
 
 The website reads public catalog and summary data through the publishable key. Automation writes through server-side Supabase credentials only.
 
+Current frontend policy:
+
+- Users browse and interact as guests without OAuth login.
+- Guest community writes are local UI interactions unless a moderated server-side write path is added.
+- Do not open anonymous direct inserts to public community tables without spam protection, moderation, and rate limiting.
+
 ## Initial Seed Scope
 
 Use sample catalog rows first:

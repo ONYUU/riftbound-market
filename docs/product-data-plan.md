@@ -19,6 +19,7 @@ Current live catalog status:
 - The first import loaded 958 official cards across 5 sets.
 - Card images are loaded from Riot/Riftbound official `cmsassets.rgpub.io` URLs.
 - Price summaries support KRW and USD display fields.
+- The current product policy is guest-first: no required signup or OAuth login.
 
 ## Product Surfaces
 
@@ -29,7 +30,7 @@ Current live catalog status:
 - Champions: champion cards, champion ranking.
 - Calculator: resale ROI calculator for sealed products and cards.
 - Collection: personal collection summary and watch list UI.
-- Community: posts, topics, comments, community metrics.
+- Community: guest posts, topics, comments, community metrics.
 - Guides: beginner guide, market guide, resale guide, rule summary.
 
 ## Item Types

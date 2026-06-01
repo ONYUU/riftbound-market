@@ -14,8 +14,6 @@ import {
   Filter,
   Flame,
   LineChart,
-  Loader2,
-  LogOut,
   Menu,
   MessageSquare,
   PackageOpen,
@@ -26,15 +24,13 @@ import {
   ShieldCheck,
   Sparkles,
   ThumbsUp,
-  UserPlus,
   X,
 } from "lucide-react";
-import type { User as SupabaseAuthUser } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { guides, mockCatalog, tabs } from "@/data/riftbound-data";
 import { compactNumber, formatKstDateTime, usd, won } from "@/lib/format";
 import type { CardItem, CatalogPayload, CurrencyMode, PriceSourceLink, SealedProduct, TabId } from "@/lib/riftbound-types";
-import { getSupabaseBrowserClient, isGoogleAuthEnabled, isSupabaseAuthConfigured } from "@/lib/supabase-client";
+import { getSupabaseBrowserClient, isSupabaseBrowserConfigured } from "@/lib/supabase-client";
 
 type FilterState = {
   query: string;
@@ -53,7 +49,6 @@ type AuthUser = {
   provider?: string | null;
 };
 
-type AuthProvider = "google";
 type LegalPanelId = "terms" | "privacy" | "contact" | "data";
 
 const emptyFilters: FilterState = {
@@ -68,6 +63,12 @@ const emptyFilters: FilterState = {
 const favoriteStorageKey = "riftbound.favoriteCardIds.v1";
 const tabIdSet = new Set<TabId>(["home", ...tabs.map((tab) => tab.id)]);
 const supportEmail = "beot.ai.team@gmail.com";
+const guestUser: AuthUser = {
+  id: "guest-local",
+  name: "Guest",
+  email: null,
+  provider: "guest",
+};
 
 function readTabFromLocation(): TabId {
   if (typeof window === "undefined") return "home";
@@ -87,24 +88,6 @@ function pushTabToLocation(tab: TabId) {
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
-}
-
-function mapSupabaseAuthUser(user: SupabaseAuthUser | null | undefined): AuthUser | null {
-  if (!user) return null;
-
-  const metadata = user.user_metadata || {};
-  const appMetadata = user.app_metadata || {};
-  const rawName = metadata.name || metadata.full_name || metadata.preferred_username || user.email?.split("@")[0] || "Riftbound Collector";
-  const avatarUrl = metadata.avatar_url || metadata.picture || null;
-  const provider = typeof appMetadata.provider === "string" ? appMetadata.provider : null;
-
-  return {
-    id: user.id,
-    name: String(rawName),
-    email: user.email ?? null,
-    avatarUrl: typeof avatarUrl === "string" ? avatarUrl : null,
-    provider,
-  };
 }
 
 function price(currency: CurrencyMode, krw?: number | null, usdValue?: number | null) {
@@ -618,111 +601,47 @@ function ProductDetailPanel({ product, currency, cards, onClose }: { product: Se
 }
 
 function AccountModal({
-  authError,
-  authReady,
   currentUser,
-  isAuthConfigured,
   onClose,
-  onLogout,
-  onSignin,
 }: {
-  authError: string | null;
-  authReady: boolean;
-  currentUser: AuthUser | null;
-  isAuthConfigured: boolean;
+  currentUser: AuthUser;
   onClose: () => void;
-  onLogout: () => Promise<void>;
-  onSignin: (provider: AuthProvider) => Promise<void>;
 }) {
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [loadingProvider, setLoadingProvider] = useState<AuthProvider | null>(null);
-  const googleReady = isAuthConfigured && isGoogleAuthEnabled();
-  const canStartAuth = authReady && googleReady && ageConfirmed && termsAccepted && !loadingProvider;
-
-  const startSignin = async (provider: AuthProvider) => {
-    if (!canStartAuth) return;
-    setLoadingProvider(provider);
-    await onSignin(provider);
-    setLoadingProvider(null);
-  };
-
   return (
     <div className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
       <Panel className="w-full max-w-[560px] p-0" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-4 border-b border-[#243047] p-5">
           <div>
-            <h2 className="text-2xl font-bold text-white">{currentUser ? "내 계정" : "회원가입 / 로그인"}</h2>
-            <p className="mt-1 text-sm text-[#9faabd]">시세 확인은 비회원도 가능하고, 커뮤니티 글과 댓글은 회원만 작성할 수 있습니다.</p>
+            <h2 className="text-2xl font-bold text-white">게스트 모드</h2>
+            <p className="mt-1 text-sm text-[#9faabd]">회원가입 없이 카드 시세, 컬렉션, 계산기, 커뮤니티를 둘러볼 수 있습니다.</p>
           </div>
           <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-[6px] border border-[#33465f] bg-white/5">
             <X className="h-4 w-4" />
           </button>
         </div>
-
-        {currentUser ? (
-          <div className="space-y-4 p-5">
-            <div className="flex items-center gap-4 rounded-[8px] border border-[#263752] bg-[#0b1728] p-4">
-              {currentUser.avatarUrl ? (
-                <img src={currentUser.avatarUrl} alt="" className="h-14 w-14 rounded-full border border-[#f4ae45] object-cover" />
-              ) : (
-                <div className="grid h-14 w-14 place-items-center rounded-full border border-[#f4ae45] bg-[#6233b5] text-xl font-bold">
-                  {currentUser.name.slice(0, 1).toUpperCase()}
-                </div>
-              )}
-              <div className="min-w-0">
-                <div className="text-sm text-[#9faabd]">로그인 계정</div>
-                <div className="truncate text-xl font-bold">{currentUser.name}</div>
-                <div className="truncate text-sm text-[#9faabd]">{currentUser.email || "이메일 비공개"}</div>
-                {currentUser.provider ? <div className="mt-1 text-xs uppercase text-[#f5b85b]">{currentUser.provider}</div> : null}
-              </div>
+        <div className="space-y-4 p-5">
+          <div className="flex items-center gap-4 rounded-[8px] border border-[#263752] bg-[#0b1728] p-4">
+            <div className="grid h-14 w-14 place-items-center rounded-full border border-[#f4ae45] bg-[#6233b5] text-xl font-bold">
+              {currentUser.name.slice(0, 1).toUpperCase()}
             </div>
-            <button type="button" onClick={onLogout} className="flex h-11 w-full items-center justify-center gap-2 rounded-[7px] border border-[#33465f] text-[#d7e0ef] transition hover:bg-white/5">
-              <LogOut className="h-4 w-4" /> 로그아웃
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4 p-5">
-            {!isAuthConfigured ? (
-              <div className="rounded-[7px] border border-[#7c4d1f] bg-[#2a1807] p-3 text-sm text-[#f6d19a]">
-                Supabase 공개 URL과 publishable key가 필요합니다. `.env.local`을 설정한 뒤 다시 실행하면 소셜 로그인이 활성화됩니다.
-              </div>
-            ) : null}
-            {isAuthConfigured && !isGoogleAuthEnabled() ? (
-              <div className="rounded-[7px] border border-[#7c4d1f] bg-[#2a1807] p-3 text-sm text-[#f6d19a]">
-                Google 로그인은 Supabase Provider 설정 완료 후 활성화됩니다. 지금은 게스트로 모든 시세 화면을 볼 수 있습니다.
-              </div>
-            ) : null}
-            {authError ? <div className="rounded-[7px] border border-[#7c2b38] bg-[#2a0910] p-3 text-sm text-[#ffb8c2]">{authError}</div> : null}
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <button type="button" onClick={() => startSignin("google")} disabled={!canStartAuth} className="flex h-12 items-center justify-center gap-3 rounded-[7px] border border-[#33465f] bg-white text-sm font-bold text-[#111827] transition enabled:hover:bg-[#f2f4f7] disabled:cursor-not-allowed disabled:opacity-45">
-                {loadingProvider === "google" ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="grid h-6 w-6 place-items-center rounded-full bg-[#4285f4] text-xs text-white">G</span>}
-                {googleReady ? "Google로 계속하기" : "Google 로그인 설정 필요"}
-              </button>
-              <button type="button" onClick={onClose} className="flex h-12 items-center justify-center rounded-[7px] border border-[#33465f] bg-[#071324] text-sm font-bold text-[#d7e0ef] transition hover:border-[#9b62ff] hover:bg-white/5">
-                게스트로 둘러보기
-              </button>
-            </div>
-
-            <div className="space-y-3 rounded-[8px] border border-[#263752] bg-black/20 p-4 text-sm text-[#c7d0df]">
-              <div className="font-bold text-[#f5b85b]">Google 가입 전 확인사항</div>
-              <label className="flex gap-3">
-                <input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} className="mt-1 h-4 w-4 accent-[#8b5cf6]" />
-                <span>만 14세 이상이며, 커뮤니티에서 허위 시세 조작/사기 유도/저작권 침해 게시물을 작성하지 않겠습니다.</span>
-              </label>
-              <label className="flex gap-3">
-                <input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} className="mt-1 h-4 w-4 accent-[#8b5cf6]" />
-                <span>이용약관, 개인정보 처리방침, 커뮤니티 운영원칙, 가격 정보 면책 고지를 확인했습니다.</span>
-              </label>
-              <div className="grid gap-2 border-t border-[#243047] pt-3 text-xs leading-5 text-[#91a0b8]">
-                <p>게스트는 카드, 시세, 계산기, 가이드를 볼 수 있지만 커뮤니티 글쓰기와 댓글 작성은 Google 로그인 후 가능합니다.</p>
-                <p>가격 정보는 참고용이며 실제 거래 체결가, 배송비, 관부가세, 환율에 따라 달라질 수 있습니다.</p>
-                <p>회원 정보는 로그인 제공자 식별값, 이메일, 닉네임, 프로필 이미지를 커뮤니티 작성자 표시와 계정 관리 목적으로만 사용합니다.</p>
-              </div>
+            <div className="min-w-0">
+              <div className="text-sm text-[#9faabd]">현재 이용 방식</div>
+              <div className="truncate text-xl font-bold">{currentUser.name}</div>
+              <div className="truncate text-sm text-[#9faabd]">이메일과 소셜 계정을 수집하지 않습니다.</div>
             </div>
           </div>
-        )}
+          <div className="space-y-3 rounded-[8px] border border-[#263752] bg-black/20 p-4 text-sm text-[#c7d0df]">
+            <div className="font-bold text-[#f5b85b]">게스트 운영 안내</div>
+            <div className="grid gap-2 text-xs leading-5 text-[#91a0b8]">
+              <p>회원가입과 OAuth 로그인은 현재 사용하지 않습니다.</p>
+              <p>커뮤니티 작성 내용은 게스트 작성자로 화면에 반영됩니다. 공개 DB 익명 쓰기 권한은 보안상 열지 않습니다.</p>
+              <p>가격 정보는 참고용이며 실제 거래 체결가, 배송비, 관부가세, 환율에 따라 달라질 수 있습니다.</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="flex h-11 w-full items-center justify-center rounded-[7px] bg-[#6233b5] font-bold text-white transition hover:bg-[#7442c8]">
+            계속 둘러보기
+          </button>
+        </div>
       </Panel>
     </div>
   );
@@ -740,7 +659,7 @@ function Header({
   onTabChange: (tab: TabId) => void;
   currency: CurrencyMode;
   onCurrencyChange: (value: CurrencyMode) => void;
-  currentUser: AuthUser | null;
+  currentUser: AuthUser;
   onAccountClick: () => void;
 }) {
   return (
@@ -773,8 +692,9 @@ function Header({
           <CurrencyToggle value={currency} onChange={onCurrencyChange} />
           <Search className="hidden h-6 w-6 text-[#d7ddea] sm:block" />
           <Bell className="hidden h-5 w-5 text-[#d7ddea] sm:block" />
-          <button onClick={onAccountClick} aria-label={currentUser ? "내 계정" : "회원가입"} className={cn("flex h-10 shrink-0 items-center justify-center rounded-full border-2 border-[#f4ae45] bg-gradient-to-br from-[#6630b2] to-[#11243d] font-bold whitespace-nowrap sm:h-11", currentUser ? "w-10 text-base sm:w-11 sm:text-lg" : "w-10 text-sm sm:w-auto sm:px-4")}>
-            {currentUser ? currentUser.name.slice(0, 1).toUpperCase() : <span className="inline-flex items-center gap-2"><UserPlus className="h-4 w-4" /><span className="hidden sm:inline">가입</span></span>}
+          <button onClick={onAccountClick} aria-label="게스트 모드" className="flex h-10 shrink-0 items-center justify-center rounded-full border-2 border-[#f4ae45] bg-gradient-to-br from-[#6630b2] to-[#11243d] px-3 text-sm font-bold whitespace-nowrap sm:h-11 sm:px-4">
+            <span className="sm:hidden">{currentUser.name.slice(0, 1).toUpperCase()}</span>
+            <span className="hidden sm:inline">{currentUser.name}</span>
           </button>
           <button className="hidden md:block 2xl:hidden">
             <Menu className="h-6 w-6" />
@@ -808,8 +728,8 @@ const legalPanels: Record<LegalPanelId, { title: string; summary: string; sectio
         items: ["카드 검색, 시세 비교, 컬렉션 관리, 리셀 계산기, 커뮤니티 기능을 제공합니다.", "표시 가격은 참고용이며 실제 거래 체결가, 배송비, 관부가세, 환율에 따라 달라질 수 있습니다.", "외부 거래소 이동 후 발생하는 구매, 판매, 배송, 환불, 분쟁은 해당 플랫폼의 정책을 따릅니다."],
       },
       {
-        heading: "회원과 커뮤니티",
-        body: "비회원도 가격과 카드 정보는 볼 수 있지만, 글쓰기와 댓글 등 커뮤니티 활동은 로그인 회원에게만 제공됩니다.",
+        heading: "게스트와 커뮤니티",
+        body: "현재 서비스는 회원가입 없이 게스트 모드로 운영됩니다. 카드 정보, 가격 비교, 컬렉션, 커뮤니티 기능을 모두 게스트 화면에서 사용할 수 있습니다.",
         items: ["허위 시세 조작, 사기 유도, 불법 거래, 타인의 권리 침해 게시물은 제한될 수 있습니다.", "저작권 또는 상표권 침해 신고가 접수되면 관련 콘텐츠를 검토 후 비공개 또는 삭제할 수 있습니다.", "운영 안정성, 보안, 법적 요청 대응을 위해 일부 기능을 일시 제한할 수 있습니다."],
       },
       {
@@ -820,17 +740,17 @@ const legalPanels: Record<LegalPanelId, { title: string; summary: string; sectio
   },
   privacy: {
     title: "개인정보처리방침",
-    summary: "로그인과 커뮤니티 기능 제공에 필요한 최소한의 정보만 사용합니다.",
+    summary: "회원가입 없이 운영하며, 개인을 식별하는 로그인 정보를 수집하지 않습니다.",
     sections: [
       {
         heading: "수집 항목",
-        body: "구글 로그인 사용 시 인증 제공자로부터 전달되는 기본 프로필 정보를 사용합니다.",
-        items: ["이메일 주소, 표시 이름, 프로필 이미지, 인증 제공자 식별자", "커뮤니티 글/댓글 작성 내용과 작성 시간", "관심 카드, 필터 같은 개인화 데이터는 현재 브라우저 저장소 또는 Supabase 계정 데이터로 관리될 수 있습니다."],
+        body: "현재는 Google, Kakao, Naver 등 OAuth 회원가입을 사용하지 않습니다.",
+        items: ["관심 카드와 필터 같은 개인화 데이터는 현재 브라우저 저장소에 보관될 수 있습니다.", "게스트가 작성한 커뮤니티 글/댓글은 화면 표시와 운영 검토를 위해 사용될 수 있습니다.", "서버 로그, 오류 로그, 접속 통계는 서비스 안정성 확인 목적의 기술 정보로 처리될 수 있습니다."],
       },
       {
         heading: "이용 목적",
-        body: "수집한 정보는 계정 식별, 커뮤니티 작성자 표시, 부정 이용 방지, 사용자가 저장한 관심 카드 제공을 위해 사용합니다.",
-        items: ["가격 조회 자체는 회원가입 없이 사용할 수 있습니다.", "마케팅 메일 발송이나 외부 판매 목적의 개인정보 제공은 하지 않습니다.", "서비스 운영에는 Vercel, Supabase, Google OAuth 등 인프라 제공자가 사용될 수 있습니다."],
+        body: "수집되는 최소 정보는 서비스 표시, 부정 이용 방지, 사용자가 저장한 관심 카드 제공, 오류 확인을 위해 사용합니다.",
+        items: ["가격 조회와 커뮤니티 이용은 회원가입 없이 사용할 수 있습니다.", "마케팅 메일 발송이나 외부 판매 목적의 개인정보 제공은 하지 않습니다.", "서비스 운영에는 Vercel, Supabase 등 인프라 제공자가 사용될 수 있습니다."],
       },
       {
         heading: "보관과 삭제",
@@ -1839,7 +1759,7 @@ function relativeKstTime(value: string) {
   return `${Math.floor(diffMinutes / 1440)}일 전`;
 }
 
-function CommunityView({ catalog, currency, currentUser, onRequireAuth }: { catalog: CatalogPayload; currency: CurrencyMode; currentUser: AuthUser | null; onRequireAuth: () => void }) {
+function CommunityView({ catalog, currency, currentUser }: { catalog: CatalogPayload; currency: CurrencyMode; currentUser: AuthUser }) {
   const categories = ["전체", "시세 제보", "개봉 후기", "등급 후기", "거래 후기", "질문", "자유 게시판"];
   const communityCards = useMemo(() => sortCards(catalog.cards.filter((card) => card.imageUrl), "average-desc").slice(0, 18), [catalog.cards]);
   const seedPosts = useMemo<CommunityPost[]>(
@@ -1870,7 +1790,7 @@ function CommunityView({ catalog, currency, currentUser, onRequireAuth }: { cata
   const [communityError, setCommunityError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isSupabaseAuthConfigured()) return;
+    if (!isSupabaseBrowserConfigured()) return;
 
     const supabase = getSupabaseBrowserClient();
     const cardById = new Map(catalog.cards.map((card) => [card.id, card]));
@@ -1969,28 +1889,8 @@ function CommunityView({ catalog, currency, currentUser, onRequireAuth }: { cata
     setter(next);
   };
 
-  const ensureProfile = async () => {
-    if (!currentUser || !isSupabaseAuthConfigured()) return null;
-    const supabase = getSupabaseBrowserClient();
-    const { error } = await supabase.from("profiles").upsert(
-      {
-        id: currentUser.id,
-        display_name: currentUser.name,
-        avatar_url: currentUser.avatarUrl || null,
-        provider: currentUser.provider || "oauth",
-      },
-      { onConflict: "id" },
-    );
-    if (error) throw error;
-    return supabase;
-  };
-
   const submitPost = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!currentUser) {
-      onRequireAuth();
-      return;
-    }
     if (!draftTitle.trim() || !draftBody.trim()) return;
     const linkedCard = catalog.cards.find((card) => card.id === draftCardId) || communityCards[0];
     const nextPost: CommunityPost = {
@@ -2009,32 +1909,6 @@ function CommunityView({ catalog, currency, currentUser, onRequireAuth }: { cata
       card: linkedCard,
     };
 
-    if (isSupabaseAuthConfigured()) {
-      try {
-        const supabase = await ensureProfile();
-        const { data, error } = await supabase!
-          .from("community_posts")
-          .insert({
-            author_id: currentUser.id,
-            body: nextPost.body,
-            card_id: linkedCard?.id || null,
-            category: nextPost.category,
-            title: nextPost.title,
-          })
-          .select("id, created_at")
-          .single();
-
-        if (error) throw error;
-        nextPost.id = String(data.id);
-        nextPost.createdAt = relativeKstTime(String(data.created_at));
-        nextPost.isRemote = true;
-        setCommunityError(null);
-      } catch (error) {
-        setCommunityError(error instanceof Error ? error.message : "게시글 저장에 실패했습니다.");
-        return;
-      }
-    }
-
     setUserPosts((current) => [nextPost, ...current]);
     setSelectedPostId(nextPost.id);
     setDraftTitle("");
@@ -2044,10 +1918,6 @@ function CommunityView({ catalog, currency, currentUser, onRequireAuth }: { cata
   };
   const submitComment = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!currentUser) {
-      onRequireAuth();
-      return;
-    }
     if (!selectedPost || !commentDraft.trim()) return;
     const nextComment: CommunityComment = {
       id: `comment-${Date.now()}`,
@@ -2055,29 +1925,6 @@ function CommunityView({ catalog, currency, currentUser, onRequireAuth }: { cata
       body: commentDraft.trim(),
       createdAt: "방금 전",
     };
-
-    if (selectedPost.isRemote && isSupabaseAuthConfigured()) {
-      try {
-        const supabase = await ensureProfile();
-        const { data, error } = await supabase!
-          .from("community_comments")
-          .insert({
-            author_id: currentUser.id,
-            body: nextComment.body,
-            post_id: selectedPost.id,
-          })
-          .select("id, created_at")
-          .single();
-
-        if (error) throw error;
-        nextComment.id = String(data.id);
-        nextComment.createdAt = relativeKstTime(String(data.created_at));
-        setCommunityError(null);
-      } catch (error) {
-        setCommunityError(error instanceof Error ? error.message : "댓글 저장에 실패했습니다.");
-        return;
-      }
-    }
 
     setCommentsByPost((current) => ({ ...current, [selectedPost.id]: [...(current[selectedPost.id] || []), nextComment] }));
     setCommentDraft("");
@@ -2089,10 +1936,10 @@ function CommunityView({ catalog, currency, currentUser, onRequireAuth }: { cata
         <div className="flex flex-col gap-5 bg-[radial-gradient(circle_at_66%_30%,rgba(168,85,247,0.35),transparent_22rem),linear-gradient(90deg,#18143a,#061221)] p-8 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-bold">Riftbound 커뮤니티</h1>
-            <p className="mt-3 text-[#c7d0df]">시세 제보, 개봉 후기, 거래 경험을 모아 빠르게 확인합니다.</p>
+            <p className="mt-3 text-[#c7d0df]">회원가입 없이 게스트로 시세 제보, 개봉 후기, 거래 경험을 남길 수 있습니다.</p>
           </div>
-          <button type="button" onClick={() => currentUser ? setComposerOpen((value) => !value) : onRequireAuth()} className="inline-flex h-12 items-center justify-center gap-2 rounded-[7px] bg-[#6233b5] px-5 font-bold text-white">
-            <Plus className="h-4 w-4" /> {currentUser ? "글쓰기" : "가입 후 글쓰기"}
+          <button type="button" onClick={() => setComposerOpen((value) => !value)} className="inline-flex h-12 items-center justify-center gap-2 rounded-[7px] bg-[#6233b5] px-5 font-bold text-white">
+            <Plus className="h-4 w-4" /> 글쓰기
           </button>
         </div>
       </Panel>
@@ -2116,7 +1963,7 @@ function CommunityView({ catalog, currency, currentUser, onRequireAuth }: { cata
               {communityError || "커뮤니티 데이터를 불러오는 중입니다."}
             </div>
           ) : null}
-          {composerOpen && currentUser ? (
+          {composerOpen ? (
             <form onSubmit={submitPost} className="grid gap-3 border-b border-[#243047] bg-[#0b1728]/70 p-5">
               <div className="grid gap-3 md:grid-cols-[180px_1fr]">
                 <select value={draftCategory} onChange={(event) => setDraftCategory(event.target.value)} className="h-11 rounded-[6px] border border-[#2a3b56] bg-[#071324] px-3 text-[#d7e0ef]">
@@ -2172,7 +2019,7 @@ function CommunityView({ catalog, currency, currentUser, onRequireAuth }: { cata
                 <button type="button" onClick={() => toggleSet(setBookmarkedIds, bookmarkedIds, selectedPost.id)} className={cn("flex h-10 flex-1 items-center justify-center gap-2 rounded-[6px] border", bookmarkedIds.has(selectedPost.id) ? "border-[#f5b85b] bg-[#4b2d12]/50 text-white" : "border-[#33465f] text-[#c7d0df]")}><Bookmark className="h-4 w-4" /> 저장</button>
               </div>
               <form onSubmit={submitComment} className="mt-5 flex gap-2">
-                <input value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} onFocus={() => { if (!currentUser) onRequireAuth(); }} disabled={!currentUser} placeholder={currentUser ? "댓글 입력" : "회원가입 후 댓글 입력"} className="h-10 min-w-0 flex-1 rounded-[6px] border border-[#2a3b56] bg-[#071324] px-3 text-sm text-[#d7e0ef] outline-none disabled:opacity-60" />
+                <input value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="댓글 입력" className="h-10 min-w-0 flex-1 rounded-[6px] border border-[#2a3b56] bg-[#071324] px-3 text-sm text-[#d7e0ef] outline-none" />
                 <button type="submit" className="grid h-10 w-10 place-items-center rounded-[6px] bg-[#6233b5]"><Send className="h-4 w-4" /></button>
               </form>
               <div className="mt-4 space-y-2 text-sm text-[#c7d0df]">
@@ -2234,11 +2081,9 @@ export function RiftboundApp() {
       return new Set();
     }
   });
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [authReady, setAuthReady] = useState(() => !isSupabaseAuthConfigured());
-  const [authError, setAuthError] = useState<string | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [legalPanel, setLegalPanel] = useState<LegalPanelId | null>(null);
+  const currentUser = guestUser;
 
   useEffect(() => {
     let ignore = false;
@@ -2281,70 +2126,6 @@ export function RiftboundApp() {
   useEffect(() => {
     window.localStorage.setItem(favoriteStorageKey, JSON.stringify(Array.from(favoriteIds)));
   }, [favoriteIds]);
-
-  useEffect(() => {
-    if (!isSupabaseAuthConfigured()) {
-      return;
-    }
-
-    const supabase = getSupabaseBrowserClient();
-    let mounted = true;
-
-    supabase.auth
-      .getSession()
-      .then(({ data, error }) => {
-        if (!mounted) return;
-        if (error) setAuthError(error.message);
-        setCurrentUser(mapSupabaseAuthUser(data.session?.user));
-      })
-      .finally(() => {
-        if (mounted) setAuthReady(true);
-      });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setCurrentUser(mapSupabaseAuthUser(session?.user));
-      setAuthReady(true);
-      if (session?.user) setAuthError(null);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  const signinWithProvider = useCallback(async (provider: AuthProvider) => {
-    setAuthError(null);
-    if (!isSupabaseAuthConfigured()) {
-      setAuthError("Supabase Auth 환경변수가 아직 설정되지 않았습니다.");
-      return;
-    }
-
-    const supabase = getSupabaseBrowserClient();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/`,
-      },
-    });
-
-    if (error) setAuthError(error.message);
-  }, []);
-
-  const logout = useCallback(async () => {
-    setAuthError(null);
-    if (isSupabaseAuthConfigured()) {
-      const { error } = await getSupabaseBrowserClient().auth.signOut();
-      if (error) {
-        setAuthError(error.message);
-        return;
-      }
-    }
-    setCurrentUser(null);
-    setAccountOpen(false);
-  }, []);
 
   const navigateTab = useCallback((tab: TabId) => {
     setSelectedCard(null);
@@ -2398,7 +2179,7 @@ export function RiftboundApp() {
       case "collection":
         return <FavoriteCollectionView catalog={catalog} currency={currency} favoriteCards={favoriteCards} onOpenCard={openCard} />;
       case "community":
-        return <CommunityView catalog={catalog} currency={currency} currentUser={currentUser} onRequireAuth={() => setAccountOpen(true)} />;
+        return <CommunityView catalog={catalog} currency={currency} currentUser={currentUser} />;
       case "guides":
         return <GuidesView />;
       default:
@@ -2416,13 +2197,8 @@ export function RiftboundApp() {
       {legalPanel ? <LegalInfoPanel panel={legalPanel} onClose={() => setLegalPanel(null)} /> : null}
       {accountOpen ? (
         <AccountModal
-          authError={authError}
-          authReady={authReady}
           currentUser={currentUser}
-          isAuthConfigured={isSupabaseAuthConfigured()}
           onClose={() => setAccountOpen(false)}
-          onLogout={logout}
-          onSignin={signinWithProvider}
         />
       ) : null}
     </div>

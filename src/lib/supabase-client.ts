@@ -4,12 +4,8 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let browserClient: SupabaseClient | null = null;
 
-export function isSupabaseAuthConfigured() {
+export function isSupabaseBrowserConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
-}
-
-export function isGoogleAuthEnabled() {
-  return process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true";
 }
 
 export function getSupabaseBrowserClient() {
